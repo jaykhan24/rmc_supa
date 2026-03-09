@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>원가계산기</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./app.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <script>document.write(hero("원가계산기", "배합, 단가, 총원가, 총매출, 이익, 마진율을 계산합니다."));</script>
+    <script>document.write(topNav('cost'));</script>
+    <div id="dbNotice" class="notice warn" style="margin-bottom:20px"></div>
+    <div class="grid2">
+      <div class="card">
+        <h2>입력</h2><div style="height:16px"></div>
+        <div class="field"><label>배합 선택</label><select id="mixSelect"></select></div>
+        <div class="field"><label>출하량</label><div class="inline"><input id="volume" type="number" value="0" /><span class="suffix">m³</span></div></div>
+        <div class="field"><label>판매단가</label><div class="inline"><input id="sellPrice" type="number" value="104000" /><span class="suffix">원/m³</span></div></div>
+        <div id="mixMeta" class="notice warn"></div>
+        <div class="row-actions" style="margin-top:12px"><button class="primary" onclick="calcCost()">계산</button><button onclick="renderCost()">새로고침</button></div>
+      </div>
+      <div class="card">
+        <h2>손익 요약</h2><div style="height:16px"></div>
+        <div class="stats-grid">
+         <div class="stat"><div class="label">총 매출</div><div class="value" id="c_sales">0원</div></div>
+         <div class="stat"><div class="label">총 원가</div><div class="value" id="c_totalCost">0원</div></div>
+         <div class="stat"><div class="label">예상 이익</div><div class="value" id="c_profit">0원</div></div>
+         <div class="stat"><div class="label">마진율</div><div class="value" id="c_margin">0%</div></div>
+        </div>
+      </div>
+    </div>
+    <div style="height:20px"></div>
+    <div class="card">
+      <h2>원가 상세</h2>
+      <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>항목</th><th>수량</th><th>단가</th><th>금액</th></tr></thead><tbody id="costRows"></tbody></table></div>
+    </div>
+    <div id="adminEditorWrap" style="display:none;margin-top:20px" class="card">
+      <h2>관리자 수정 영역</h2><div class="sub">배합값과 단가를 Supabase DB에 저장합니다.</div>
+      <div style="height:16px"></div><div class="row-actions"><button onclick="addMix()">배합 추가</button></div>
+      <div style="height:16px"></div><div class="admin-grid" id="mixEditor"></div>
+      <div style="height:16px"></div><div class="admin-grid" id="priceEditor"></div>
+    </div>
+  </div>
+<script>
+let mixesData = [], pricesData = {};
+function selectedMix(){ return mixesData.find(m => String(m.id) === mixSelect.value) || mixesData[0]; }
+async function renderMixOptions(){mixesData = await getMixes();
+  const defaultMix = mixesData.find(m => m.name === "25-21-80");
+  mixSelect.innerHTML = mixesData
+    .map(m => `<option value="${m.id}">${m.name} (${m.code})</option>`)
+    .join('');
+  if (defaultMix) {
+    mixSelect.value = defaultMix.id;
+  } else {
+    mixSelect.value = mixesData[0]?.id || '';
+  }
+
+}
+function calcCost(){
+  const mix = selectedMix(); if (!mix) return;
+  const vol = Number(volume.value || 0), sp = Number(sellPrice.value || 0), density = 1550;
+  mixMeta.className='notice warn'; mixMeta.textContent=`선택 배합: ${mix.name} / 코드: ${mix.code} / W/B: ${mix.wb} / S/A: ${mix.sa}`;
+  const items = [
+    ['시멘트(1종)', (mix.c1/1000)*vol, pricesData.C1], ['시멘트(2종)', (mix.c2/1000)*vol, pricesData.C2], ['플라이애시', (mix.c3/1000)*vol, pricesData.C3],
+    ['모래', (mix.s1/density)*vol, pricesData.S1], ['잔골재', (mix.s2/density)*vol, pricesData.S2], ['부순모래', (mix.s3/density)*vol, pricesData.S3],
+    ['25mm', (mix.g1/density)*vol, pricesData.G1], ['19mm', (mix.g2/density)*vol, pricesData.G2], ['골재3', (mix.g3/density)*vol, pricesData.G3], ['골재4', (mix.g4/density)*vol, pricesData.G4],
+    ['혼화제1', mix.a1*vol, pricesData.A1], ['혼화제2', mix.a2*vol, pricesData.A2], ['혼화제3', mix.a3*vol, pricesData.A3], ['혼화제6', mix.a6*vol, pricesData.A6],
+    ['물1', mix.w1*vol, pricesData.W1], ['물2', mix.w2*vol, pricesData.W2]
+  ].filter(v => v[1] > 0.0001);
+  let totalCost = 0;
+
+costRows.innerHTML = items.map(([name, qty, price]) => {
+
+  const amount = qty * (price || 0);
+
+  const roundedAmount = Math.round(amount / 10) * 10;
+
+  totalCost += roundedAmount;
+
+  return `<tr>
+<td>${name}</td>
+<td>${qty.toFixed(2)}</td>
+<td>${(price||0).toLocaleString()}원</td>
+<td>${roundedAmount.toLocaleString()}원</td>
+</tr>`;
+
+}).join('');
+  const sales = vol * sp, profit = sales - totalCost, margin = sales > 0 ? (profit / sales) * 100 : 0;
+  c_totalCost.textContent = totalCost.toLocaleString() + '원'; c_sales.textContent = sales.toLocaleString() + '원'; c_profit.textContent = profit.toLocaleString() + '원'; c_margin.textContent = margin.toFixed(1) + '%';
+}
+function renderAdminCostEditor(){
+  if (!isAdmin()){ adminEditorWrap.style.display='none'; return; }
+  adminEditorWrap.style.display='block';
+  const mix = selectedMix(); if (!mix) return;
+  const mixFields = ['name','code','wb','sa','c1','c2','c3','s1','s2','s3','g1','g2','g3','g4','a1','a2','a3','a6','w1','w2'];
+  mixEditor.innerHTML = mixFields.map(k => `<div class="field"><label>${k.toUpperCase()}</label><input value="${mix[k] ?? ''}" onchange="updateMixField('${mix.id}','${k}', this.value)" /></div>`).join('');
+  priceEditor.innerHTML = Object.keys(pricesData).map(k => `<div class="field"><label>${k}</label><input type="number" value="${pricesData[k]}" onchange="updatePriceField('${k}', this.value)" /></div>`).join('');
+}
+async function updateMixField(id, key, value){
+  const ok = await updateMixFieldDb(Number(id), key, value);
+  if (!ok) return alert('배합 저장 실패: Supabase 연결 또는 RLS 설정을 확인하세요.');
+  await renderCost();
+}
+async function updatePriceField(key, value){
+  const ok = await updatePriceFieldDb(key, Number(value || 0));
+  if (!ok) return alert('단가 저장 실패: Supabase 연결 또는 RLS 설정을 확인하세요.');
+  pricesData[key] = Number(value || 0); calcCost();
+}
+async function addMix(){
+  const ok = await addMixDb({ name:'신규배합', code:String(Date.now()), wb:0, sa:0, w1:0, w2:0, c1:0, c2:0, c3:0, s1:0, s2:0, s3:0, g1:0, g2:0, g3:0, g4:0, a1:0, a2:0, a3:0, a6:0 });
+  if (!ok) return alert('배합 추가 실패: Supabase 연결 또는 RLS 설정을 확인하세요.');
+  await renderCost();
+}
+async function renderCost(){ pricesData = await getPrices(); await renderMixOptions(); calcCost(); renderAdminCostEditor(); }
+document.addEventListener('change', (e) => { if (e.target && ['mixSelect','volume','sellPrice'].includes(e.target.id)) { calcCost(); renderAdminCostEditor(); } });
+(async function(){ showSupabaseGuide("dbNotice"); await renderCost(); })();
+</script>
+</body>
+</html>

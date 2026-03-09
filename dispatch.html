@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>출하량계산기</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./app.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <script>document.write(hero("출하량계산기", "관리자가 디폴트값을 바꿀 수 있고, 사용자는 계산만 빠르게 할 수 있습니다."));</script>
+    <script>document.write(topNav('dispatch'));</script>
+    <div id="dbNotice" class="notice warn" style="margin-bottom:20px"></div>
+    <div class="grid2">
+      <div class="card">
+        <h2>입력</h2><div style="height:16px"></div>
+        <div class="field"><label>왕복시간</label><div class="inline"><input id="roundTrip" type="number" /><span class="suffix">분</span></div></div>
+        <div class="field"><label>업무시간</label><div class="inline"><input id="workHours" type="number" /><span class="suffix">시간</span></div></div>
+        <div class="field"><label>차량 1대 적재량</label><div class="inline"><input id="loadPerTruck" type="number" /><span class="suffix">m³</span></div></div>
+        <div class="field"><label>보유 차량대수</label><div class="inline"><input id="owned" type="number" /><span class="suffix">대</span></div></div>
+        <div class="field"><label>투입 예정 용차</label><div class="inline"><input id="rental" type="number" /><span class="suffix">대</span></div></div>
+        <div class="field"><label>목표 하루 출하량</label><div class="inline"><input id="target" type="number" /><span class="suffix">m³</span></div></div>
+        <div class="row-actions">
+          <button class="primary" onclick="calcDispatch()">계산</button>
+          <button onclick="resetDispatch()">기본값 불러오기</button>
+          <button onclick="saveDispatchDefaults()">현재값을 디폴트로 저장</button>
+        </div>
+        <div id="dispatchAdminNote" class="notice warn" style="margin-top:12px"></div>
+      </div>
+      <div class="card">
+        <h2>결과</h2><div style="height:16px"></div>
+        <div class="stats-grid">
+          <div class="stat"><div class="label">총 투입 차량</div><div class="value" id="r_total">0대</div></div>
+           <div class="stat"><div class="label">하루 가능 출하량</div><div class="value" id="r_daily">0m³</div></div>
+          <div class="stat"><div class="label">1대당 하루 회전수</div><div class="value" id="r_turns_daily">0회</div></div>
+          <div class="stat"><div class="label">1대당 시간당 회전수</div><div class="value" id="r_turns">0회</div></div>
+          <div class="stat"><div class="label">시간당 전체 출하량</div><div class="value" id="r_hourly">0m³</div></div>
+          <div class="stat"><div class="label">목표 출하량 기준<br> 최소 투입 차량대수</div><div class="value" id="r_needed">0대</div></div>
+          <div class="stat"><div class="label">추가 필요 용차</div><div class="value" id="r_extra">0대</div></div>
+        </div>
+        <div style="height:14px"></div><div id="dispatchNotice" class="notice good"></div>
+      </div>
+    </div>
+  </div>
+<script>
+async function fillDispatchForm(){
+  const d = await getDispatchDefaults();
+  roundTrip.value = d.roundTrip; workHours.value = d.workHours; loadPerTruck.value = d.loadPerTruck;
+  owned.value = d.owned; rental.value = d.rental; target.value = d.target;
+  dispatchAdminNote.textContent = isAdmin() ? '관리자 로그인 상태입니다. DB 기본값 저장 가능.' : 'DB 기본값 저장도 가능하지만 관리자 로그인 후 사용을 권장합니다.';
+}
+
+function calcDispatch(){
+  const rt = Number(roundTrip.value || 0),
+        wh = Number(workHours.value || 0),
+        lpt = Number(loadPerTruck.value || 0),
+        ow = Number(owned.value || 0),
+        re = Number(rental.value || 0),
+        tg = Number(target.value || 0);
+
+  const total = ow + re;
+  const turns = rt > 0 ? 60 / rt : 0;              // 시간당 회전수
+  const turnsDaily = turns * wh;                   // 1대당 하루 회전수
+  const hourly = total * turns * lpt;              // 시간당 출하량
+  const daily = hourly * wh;                       // 하루 출하량
+  const tang = hourly / 6;                         // 시간당 출하량 기준 탕수
+  const dailyTang = daily / 6;                     // 하루 가능 출하량 기준 탕수
+
+  const needed = turns * lpt * wh > 0 ? tg / (turns * lpt * wh) : 0;
+  const extra = Math.max(0, Math.ceil(needed - ow));
+  const diff = total - needed;
+
+  r_total.textContent = total.toFixed(0) + '대';
+  r_turns_daily.textContent = turnsDaily.toFixed(1) + '회';
+  r_turns.textContent = turns.toFixed(1) + '회';
+  r_hourly.innerHTML =  hourly.toFixed(1) + 'm³' +  '<span class="tang">(' + tang.toFixed(1) + '탕)</span>';
+  r_daily.innerHTML = daily.toFixed(1) + 'm³' +  '<span class="tang">(' + dailyTang.toFixed(1) + '탕)</span>';
+  r_needed.textContent = needed.toFixed(1) + '대';
+  r_extra.textContent = extra.toFixed(0) + '대';
+
+  if (diff >= 0){
+    dispatchNotice.className = 'notice good';
+    dispatchNotice.textContent = `현재 계획으로 목표 대비 ${diff.toFixed(1)}대 여유입니다.`;
+  } else {
+    dispatchNotice.className = 'notice bad';
+    dispatchNotice.textContent = `현재 계획으로 목표 대비 ${Math.abs(diff).toFixed(1)}대 부족합니다.`;
+  }
+}
+
+async function resetDispatch(){ await fillDispatchForm(); calcDispatch(); }
+async function saveDispatchDefaults(){
+  const d = { roundTrip:Number(roundTrip.value||0), workHours:Number(workHours.value||0), loadPerTruck:Number(loadPerTruck.value||0), owned:Number(owned.value||0), rental:Number(rental.value||0), target:Number(target.value||0) };
+  const ok = await saveDispatchDefaultsToDb(d);
+  alert(ok ? '출하량 계산기 디폴트값이 저장되었습니다.' : 'DB 저장 실패: app.js의 Supabase 값과 RLS 설정을 확인하세요.');
+}
+(async function(){ showSupabaseGuide("dbNotice"); await fillDispatchForm(); calcDispatch(); })();
+
+
+</script>
+</body>
+</html>
+

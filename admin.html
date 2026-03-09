@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>관리자 관리</title>
+  <link rel="stylesheet" href="./style.css?v=3" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./app.js?v=3"></script>
+</head>
+<body>
+  <div class="wrap">
+    <script>document.write(hero("관리자 관리", "관리자 로그인, 아이디/비밀번호 변경, 출하량 계산기 디폴트값 변경을 관리합니다."));</script>
+    <script>document.write(topNav('admin'));</script>
+
+    <div id="dbNotice" class="notice warn" style="margin-bottom:20px"></div>
+
+    <div id="loginWrap" class="card">
+      <h2>관리자 로그인</h2>
+      <div style="height:16px"></div>
+
+      <div class="grid2">
+        <div class="field">
+          <label>아이디</label>
+          <input
+            id="loginId"
+            type="text"
+            autocomplete="username"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
+          />
+        </div>
+        <div class="field">
+          <label>비밀번호</label>
+          <input
+            id="loginPw"
+            type="password"
+            autocomplete="current-password"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
+          />
+        </div>
+      </div>
+
+      <button class="primary" onclick="loginAdmin()">로그인</button>
+
+      <div style="height:12px"></div>
+      <div class="notice warn">
+        관리자 계정은 Supabase의 <b>admin_users</b> 테이블에서 불러옵니다.
+        출하량 기본값은 <b>dispatch_settings</b> 테이블에 저장됩니다.
+      </div>
+    </div>
+
+    <div id="adminWrap" style="display:none">
+      <div class="grid2">
+        <div class="card">
+          <h2>관리자 계정 변경</h2>
+          <div style="height:16px"></div>
+
+          <div class="field">
+            <label>새 관리자 아이디</label>
+            <input
+              id="newAdminId"
+              type="text"
+              autocomplete="username"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+            />
+          </div>
+
+          <div class="field">
+            <label>새 관리자 비밀번호</label>
+            <input
+              id="newAdminPw"
+              type="password"
+              autocomplete="new-password"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+            />
+          </div>
+
+          <button class="primary" onclick="saveAdminInfo()">관리자 정보 저장</button>
+        </div>
+
+        <div class="card">
+          <h2>출하량 계산기 디폴트값 관리</h2>
+          <div style="height:16px"></div>
+
+          <div class="grid2">
+            <div class="field">
+              <label>왕복시간</label>
+              <div class="inline">
+                <input id="d_roundTrip" type="number" />
+                <span class="suffix">분</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>업무시간</label>
+              <div class="inline">
+                <input id="d_workHours" type="number" />
+                <span class="suffix">시간</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>차량 1대 적재량</label>
+              <div class="inline">
+                <input id="d_loadPerTruck" type="number" />
+                <span class="suffix">m³</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>보유 차량대수</label>
+              <div class="inline">
+                <input id="d_owned" type="number" />
+                <span class="suffix">대</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>투입 예정 용차</label>
+              <div class="inline">
+                <input id="d_rental" type="number" />
+                <span class="suffix">대</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>목표 하루 출하량</label>
+              <div class="inline">
+                <input id="d_target" type="number" />
+                <span class="suffix">m³</span>
+              </div>
+            </div>
+          </div>
+
+          <button class="primary" onclick="saveDispatchDefaultFromAdmin()">디폴트값 저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+async function getAdminAuth(){
+  const client = getDb();
+  if (!client) return null;
+
+  const { data, error } = await client
+    .from("admin_users")
+    .select("*")
+    .limit(1)
+    .single();
+
+  if (error || !data) {
+    console.error("getAdminAuth error:", error);
+    return null;
+  }
+
+  return data;
+}
+
+async function loginAdmin(){
+  const auth = await getAdminAuth();
+
+  if (!auth) {
+    alert("관리자 계정을 불러오지 못했습니다. Supabase 연결 또는 RLS 설정을 확인하세요.");
+    return;
+  }
+
+  const id = document.getElementById('loginId').value.trim();
+  const pw = document.getElementById('loginPw').value.trim();
+
+  if (
+    id === String(auth.admin_id).trim() &&
+    pw === String(auth.admin_pw).trim()
+  ){
+    saveJson('remicon-admin-auth', true);
+    alert('관리자 로그인되었습니다.');
+    renderAdminPage();
+  } else {
+    alert('관리자 계정이 올바르지 않습니다.');
+  }
+}
+
+async function saveAdminInfo(){
+  if (!isAdmin()) {
+    alert('관리자 로그인 후 가능합니다.');
+    return;
+  }
+
+  const client = getDb();
+  if (!client) {
+    alert('Supabase 연결을 확인하세요.');
+    return;
+  }
+
+  const auth = await getAdminAuth();
+  if (!auth) {
+    alert('기존 관리자 정보를 불러오지 못했습니다.');
+    return;
+  }
+
+  const adminId = document.getElementById('newAdminId').value.trim() || String(auth.admin_id).trim();
+  const adminPw = document.getElementById('newAdminPw').value.trim() || String(auth.admin_pw).trim();
+
+  const { error } = await client
+    .from('admin_users')
+    .update({
+      admin_id: adminId,
+      admin_pw: adminPw
+    })
+    .eq('id', auth.id);
+
+  if (error) {
+    console.error("saveAdminInfo error:", error);
+    alert('관리자 정보 저장 실패');
+    return;
+  }
+
+  alert('관리자 아이디/비밀번호가 저장되었습니다.');
+  await fillAdminForms();
+}
+
+async function fillAdminForms(){
+  const auth = await getAdminAuth();
+
+  if (auth) {
+    document.getElementById('newAdminId').value = auth.admin_id;
+    document.getElementById('newAdminPw').value = auth.admin_pw;
+  }
+
+  const d = await getDispatchDefaults();
+  document.getElementById('d_roundTrip').value = d.roundTrip;
+  document.getElementById('d_workHours').value = d.workHours;
+  document.getElementById('d_loadPerTruck').value = d.loadPerTruck;
+  document.getElementById('d_owned').value = d.owned;
+  document.getElementById('d_rental').value = d.rental;
+  document.getElementById('d_target').value = d.target;
+}
+
+async function saveDispatchDefaultFromAdmin(){
+  if (!isAdmin()) {
+    alert('관리자 로그인 후 가능합니다.');
+    return;
+  }
+
+  const d = {
+    roundTrip: Number(document.getElementById('d_roundTrip').value || 0),
+    workHours: Number(document.getElementById('d_workHours').value || 0),
+    loadPerTruck: Number(document.getElementById('d_loadPerTruck').value || 0),
+    owned: Number(document.getElementById('d_owned').value || 0),
+    rental: Number(document.getElementById('d_rental').value || 0),
+    target: Number(document.getElementById('d_target').value || 0)
+  };
+
+  const ok = await saveDispatchDefaultsToDb(d);
+
+  if (!ok) {
+    alert('DB 저장 실패: Supabase 연결 또는 RLS 설정을 확인하세요.');
+    return;
+  }
+
+  alert('출하량 계산기 디폴트값이 저장되었습니다.');
+}
+
+async function renderAdminPage(){
+  const admin = isAdmin();
+  document.getElementById('loginWrap').style.display = admin ? 'none' : 'block';
+  document.getElementById('adminWrap').style.display = admin ? 'block' : 'none';
+
+  if (admin) {
+    await fillAdminForms();
+  }
+}
+
+(async function init(){
+  showSupabaseGuide("dbNotice");
+  await renderAdminPage();
+})();
+</script>
+</body>
+</html>
