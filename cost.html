@@ -18,17 +18,29 @@
         <h2>입력</h2><div style="height:16px"></div>
         <div class="field"><label>배합 선택</label><select id="mixSelect"></select></div>
         <div class="field"><label>출하량</label><div class="inline"><input id="volume" type="number" value="0" /><span class="suffix">m³</span></div></div>
-        <div class="field"><label>판매단가</label><div class="inline"><input id="sellPrice" type="number" value="104000" /><span class="suffix">원/m³</span></div></div>
+        <div class="field price-pair-field cost-price-layout">
+          <div class="price-pair-grid">
+            <div class="field cost-subfield">
+              <label>판매단가</label>
+              <div class="inline"><input id="sellPrice" type="number" value="104000" /><span class="suffix">원/m³</span></div>
+            </div>
+            <div class="field cost-subfield">
+              <label>정가</label>
+              <div class="inline"><input id="oPriceDisplay" type="number" value="0" readonly /><span class="suffix">원/m³</span></div>
+            </div>
+          </div>
+        </div>
         <div id="mixMeta" class="notice warn"></div>
         <div class="row-actions" style="margin-top:12px"><button class="primary" onclick="calcCost()">계산</button><button onclick="renderCost()">새로고침</button></div>
       </div>
       <div class="card">
         <h2>손익 요약</h2><div style="height:16px"></div>
-        <div class="stats-grid">
-         <div class="stat"><div class="label">총 매출</div><div class="value" id="c_sales">0원</div></div>
-         <div class="stat"><div class="label">총 원가</div><div class="value" id="c_totalCost">0원</div></div>
-         <div class="stat"><div class="label">예상 이익</div><div class="value" id="c_profit">0원</div></div>
+        <div class="stats-grid summary-grid">
+         <div class="stat summary-wide"><div class="label">총매출</div><div class="value" id="c_sales">0원</div></div>
+         <div class="stat summary-wide"><div class="label">총 원가</div><div class="value" id="c_totalCost">0원</div></div>
+         <div class="stat summary-wide"><div class="label">예상 이익</div><div class="value" id="c_profit">0원</div></div>
          <div class="stat"><div class="label">마진율</div><div class="value" id="c_margin">0%</div></div>
+         <div class="stat"><div class="label">할인율</div><div class="value" id="c_discount">0%</div></div>
         </div>
       </div>
     </div>
@@ -37,32 +49,144 @@
       <h2>원가 상세</h2>
       <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>항목</th><th>수량</th><th>단가</th><th>금액</th></tr></thead><tbody id="costRows"></tbody></table></div>
     </div>
-    <div id="adminEditorWrap" style="display:none;margin-top:20px" class="card">
-      <h2>관리자 수정 영역</h2><div class="sub">배합값과 단가를 Supabase DB에 저장합니다.</div>
-      <div style="height:16px"></div><div class="row-actions"><button onclick="addMix()">배합 추가</button></div>
-      <div style="height:16px"></div><div class="admin-grid" id="mixEditor"></div>
-      <div style="height:16px"></div><div class="admin-grid" id="priceEditor"></div>
+
+    <div id="adminEditorWrap" style="display:none;margin-top:20px" class="card admin-editor-wrap">
+      <div class="section-head">
+        <div>
+          <h2>관리자 수정 영역</h2>
+          <div class="sub">배합비와 단가를 분리해서 관리하고, 저장 버튼으로 한 번에 반영합니다.</div>
+        </div>
+      </div>
+
+      <div class="admin-section-card">
+        <div class="section-head section-head-spread">
+          <div class="section-head-inline">
+            <h3>배합비</h3>
+            <button type="button" class="toggle-chip" id="labelToggleBtn" onclick="toggleMaterialLabels()">이름 숨김</button>
+          </div>
+          <div class="row-actions">
+            <button onclick="addMix()">추가</button>
+            <button onclick="deleteMix()">삭제</button>
+            <button class="primary" onclick="saveMix()">저장</button>
+          </div>
+        </div>
+        <div class="admin-split-layout">
+          <div class="admin-list-card">
+            <div class="mini-table-head"><span>name</span><span>code</span></div>
+            <div id="mixList" class="admin-list"></div>
+          </div>
+          <div class="admin-detail-card">
+            <div class="admin-detail-title">배합비 데이터 입력</div>
+            <div id="mixEditor" class="admin-grid admin-grid-mix"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-section-card">
+        <div class="section-head section-head-spread">
+          <div>
+            <h3>단가</h3>
+          </div>
+          <div class="row-actions">
+            <button class="primary" onclick="savePrices()">저장</button>
+          </div>
+        </div>
+        <div class="admin-detail-card">
+          <div class="admin-detail-title">정가 / 단가 입력</div>
+          <div id="priceEditor" class="admin-grid admin-grid-price"></div>
+        </div>
+      </div>
     </div>
   </div>
 <script>
+const MIX_EDITOR_FIELDS = ['name','code','o_price','wb','sa','w1','w2','c1','c2','c3','s1','s2','s3','g1','g2','g3','g4','a1','a2','a3','a6'];
+const MATERIAL_NAMES = {
+  o_price: '정가',
+  c1: '시멘트 1종',
+  c2: '시멘트 2종',
+  c3: '플라이애시',
+  s1: '모래',
+  s2: '잔골재',
+  s3: '부순모래',
+  g1: '25mm',
+  g2: '19mm',
+  g3: '골재3',
+  g4: '골재4',
+  a1: '혼화제1',
+  a2: '혼화제2',
+  a3: '혼화제3',
+  a6: '혼화제6',
+  w1: '물1',
+  w2: '물2'
+};
+let showMaterialLabels = true;
 let mixesData = [], pricesData = {};
-function selectedMix(){ return mixesData.find(m => String(m.id) === mixSelect.value) || mixesData[0]; }
-async function renderMixOptions(){mixesData = await getMixes();
-  const defaultMix = mixesData.find(m => m.name === "25-21-80");
-  mixSelect.innerHTML = mixesData
-    .map(m => `<option value="${m.id}">${m.name} (${m.code})</option>`)
-    .join('');
-  if (defaultMix) {
+let selectedAdminMixId = null;
+let editableMix = null;
+let editablePrices = {};
+let newMixSeq = 1;
+
+function selectedMix(){ return mixesData.find(m => String(m.id) === String(mixSelect.value)) || mixesData[0]; }
+function getNumericValue(value){ return Number(value || 0); }
+function normalizeMix(mix = {}){
+  const normalized = { ...mix };
+  MIX_EDITOR_FIELDS.forEach((key) => {
+    if (key === 'name' || key === 'code') return;
+    normalized[key] = Number(normalized[key] || 0);
+  });
+  normalized.name = normalized.name ?? '';
+  normalized.code = normalized.code ?? '';
+  return normalized;
+}
+
+function getAdminLabel(key, upper = false){
+  const baseKey = String(key || '');
+  const displayKey = upper ? baseKey.toUpperCase() : baseKey;
+  const extra = MATERIAL_NAMES[baseKey.toLowerCase()] || MATERIAL_NAMES[baseKey] || '';
+  if (!showMaterialLabels || !extra) return displayKey;
+  return `${displayKey}(${extra})`;
+}
+function updateLabelToggleButton(){
+  const btn = document.getElementById('labelToggleBtn');
+  if (!btn) return;
+  btn.textContent = showMaterialLabels ? '이름 숨김' : '이름 표시';
+  btn.classList.toggle('active', showMaterialLabels);
+}
+function toggleMaterialLabels(){
+  showMaterialLabels = !showMaterialLabels;
+  updateLabelToggleButton();
+  renderMixEditor();
+  renderPriceEditor();
+}
+async function renderMixOptions(){
+  mixesData = await getMixes();
+  const defaultMix = mixesData.find(m => m.name === '25-21-80');
+  mixSelect.innerHTML = mixesData.map(m => `<option value="${m.id}">${m.name} (${m.code})</option>`).join('');
+  if (mixSelect.dataset.keepValue && mixesData.some(m => String(m.id) === String(mixSelect.dataset.keepValue))) {
+    mixSelect.value = mixSelect.dataset.keepValue;
+  } else if (defaultMix) {
     mixSelect.value = defaultMix.id;
   } else {
     mixSelect.value = mixesData[0]?.id || '';
   }
-
+  applySelectedMixPrice();
+}
+function applySelectedMixPrice(){
+  const mix = selectedMix();
+  if (!mix) return;
+  const currentSellPrice = Number(sellPrice.value || 0);
+  const mixPrice = Number(mix.o_price || 0);
+  if (window.oPriceDisplay) oPriceDisplay.value = mixPrice;
+  if (!currentSellPrice || mixSelect.dataset.lastMixId !== String(mix.id)) {
+    if (mixPrice > 0) sellPrice.value = mixPrice;
+  }
+  mixSelect.dataset.lastMixId = String(mix.id);
 }
 function calcCost(){
   const mix = selectedMix(); if (!mix) return;
   const vol = Number(volume.value || 0), sp = Number(sellPrice.value || 0), density = 1550;
-  mixMeta.className='notice warn'; mixMeta.textContent=`선택 배합: ${mix.name} / 코드: ${mix.code} / W/B: ${mix.wb} / S/A: ${mix.sa}`;
+  mixMeta.className='notice warn';
+  mixMeta.textContent=`선택 배합: ${mix.name} / 코드: ${mix.code} / W/B: ${mix.wb} / S/A: ${mix.sa} / O_PRICE: ${(mix.o_price || 0).toLocaleString()}원`;
   const items = [
     ['시멘트(1종)', (mix.c1/1000)*vol, pricesData.C1], ['시멘트(2종)', (mix.c2/1000)*vol, pricesData.C2], ['플라이애시', (mix.c3/1000)*vol, pricesData.C3],
     ['모래', (mix.s1/density)*vol, pricesData.S1], ['잔골재', (mix.s2/density)*vol, pricesData.S2], ['부순모래', (mix.s3/density)*vol, pricesData.S3],
@@ -71,52 +195,152 @@ function calcCost(){
     ['물1', mix.w1*vol, pricesData.W1], ['물2', mix.w2*vol, pricesData.W2]
   ].filter(v => v[1] > 0.0001);
   let totalCost = 0;
-
-costRows.innerHTML = items.map(([name, qty, price]) => {
-
-  const amount = qty * (price || 0);
-
-  const roundedAmount = Math.round(amount / 10) * 10;
-
-  totalCost += roundedAmount;
-
-  return `<tr>
-<td>${name}</td>
-<td>${qty.toFixed(2)}</td>
-<td>${(price||0).toLocaleString()}원</td>
-<td>${roundedAmount.toLocaleString()}원</td>
-</tr>`;
-
-}).join('');
+  costRows.innerHTML = items.map(([name, qty, price]) => {
+    const amount = qty * (price || 0);
+    const roundedAmount = Math.round(amount / 10) * 10;
+    totalCost += roundedAmount;
+    return `<tr><td>${name}</td><td>${qty.toFixed(2)}</td><td>${(price||0).toLocaleString()}원</td><td>${roundedAmount.toLocaleString()}원</td></tr>`;
+  }).join('');
   const sales = vol * sp, profit = sales - totalCost, margin = sales > 0 ? (profit / sales) * 100 : 0;
-  c_totalCost.textContent = totalCost.toLocaleString() + '원'; c_sales.textContent = sales.toLocaleString() + '원'; c_profit.textContent = profit.toLocaleString() + '원'; c_margin.textContent = margin.toFixed(1) + '%';
+  c_totalCost.textContent = totalCost.toLocaleString() + '원';
+  c_sales.textContent = sales.toLocaleString() + '원';
+  c_profit.textContent = profit.toLocaleString() + '원';
+  c_margin.textContent = margin.toFixed(1) + '%';
 }
 function renderAdminCostEditor(){
-  if (!isAdmin()){ adminEditorWrap.style.display='none'; return; }
+  if (!isAdmin()){
+    adminEditorWrap.style.display='none';
+    return;
+  }
   adminEditorWrap.style.display='block';
-  const mix = selectedMix(); if (!mix) return;
-  const mixFields = ['name','code','wb','sa','c1','c2','c3','s1','s2','s3','g1','g2','g3','g4','a1','a2','a3','a6','w1','w2'];
-  mixEditor.innerHTML = mixFields.map(k => `<div class="field"><label>${k.toUpperCase()}</label><input value="${mix[k] ?? ''}" onchange="updateMixField('${mix.id}','${k}', this.value)" /></div>`).join('');
-  priceEditor.innerHTML = Object.keys(pricesData).map(k => `<div class="field"><label>${k}</label><input type="number" value="${pricesData[k]}" onchange="updatePriceField('${k}', this.value)" /></div>`).join('');
+  editablePrices = { ...pricesData };
+  if (!selectedAdminMixId && mixesData.length) selectedAdminMixId = String(mixesData[0].id);
+  if (selectedAdminMixId && !mixesData.some(m => String(m.id) === String(selectedAdminMixId)) && !String(selectedAdminMixId).startsWith('new-')) {
+    selectedAdminMixId = mixesData[0] ? String(mixesData[0].id) : null;
+  }
+  if (!editableMix && selectedAdminMixId) {
+    const found = mixesData.find(m => String(m.id) === String(selectedAdminMixId));
+    editableMix = found ? normalizeMix(found) : null;
+  }
+  renderMixList();
+  updateLabelToggleButton();
+  renderMixEditor();
+  renderPriceEditor();
 }
-async function updateMixField(id, key, value){
-  const ok = await updateMixFieldDb(Number(id), key, value);
-  if (!ok) return alert('배합 저장 실패: Supabase 연결 또는 RLS 설정을 확인하세요.');
-  await renderCost();
+function renderMixList(){
+  const listData = [...mixesData];
+  if (editableMix && String(selectedAdminMixId).startsWith('new-')) listData.unshift(editableMix);
+  mixList.innerHTML = listData.map(m => {
+    const active = String(m.id) === String(selectedAdminMixId) ? 'active' : '';
+    return `<button type="button" class="admin-list-row ${active}" onclick="selectAdminMix('${m.id}')"><span>${m.name || ''}</span><span>${m.code || ''}</span></button>`;
+  }).join('');
 }
-async function updatePriceField(key, value){
-  const ok = await updatePriceFieldDb(key, Number(value || 0));
-  if (!ok) return alert('단가 저장 실패: Supabase 연결 또는 RLS 설정을 확인하세요.');
-  pricesData[key] = Number(value || 0); calcCost();
+function renderMixEditor(){
+  if (!editableMix) {
+    mixEditor.innerHTML = '<div class="notice warn">선택된 배합이 없습니다.</div>';
+    return;
+  }
+  mixEditor.innerHTML = MIX_EDITOR_FIELDS.map((key) => {
+    const label = key === 'name' ? 'name' : key === 'code' ? 'code' : getAdminLabel(key, true);
+    const type = (key === 'name' || key === 'code') ? 'text' : 'number';
+    const value = editableMix[key] ?? '';
+    return `<div class="field"><label>${label}</label><input type="${type}" value="${value}" oninput="updateEditableMixField('${key}', this.value)" /></div>`;
+  }).join('');
+}
+function renderPriceEditor(){
+  priceEditor.innerHTML = Object.keys(editablePrices).map(k => {
+    const label = getAdminLabel(k, true);
+    return `<div class="field"><label>${label}</label><input type="number" value="${editablePrices[k] ?? 0}" oninput="updateEditablePriceField('${k}', this.value)" /></div>`;
+  }).join('');
+}
+function selectAdminMix(id){
+  selectedAdminMixId = String(id);
+  const found = mixesData.find(m => String(m.id) === String(id));
+  editableMix = found ? normalizeMix(found) : null;
+  renderMixList();
+  renderMixEditor();
+}
+function updateEditableMixField(key, value){
+  if (!editableMix) return;
+  editableMix[key] = (key === 'name' || key === 'code') ? value : getNumericValue(value);
+}
+function updateEditablePriceField(key, value){
+  editablePrices[key] = getNumericValue(value);
 }
 async function addMix(){
-  const ok = await addMixDb({ name:'신규배합', code:String(Date.now()), wb:0, sa:0, w1:0, w2:0, c1:0, c2:0, c3:0, s1:0, s2:0, s3:0, g1:0, g2:0, g3:0, g4:0, a1:0, a2:0, a3:0, a6:0 });
-  if (!ok) return alert('배합 추가 실패: Supabase 연결 또는 RLS 설정을 확인하세요.');
-  await renderCost();
+  selectedAdminMixId = `new-${newMixSeq++}`;
+  editableMix = normalizeMix({
+    id: selectedAdminMixId,
+    name:'신규배합', code:'', wb:0, sa:0, o_price:0,
+    w1:0, w2:0, c1:0, c2:0, c3:0, s1:0, s2:0, s3:0, g1:0, g2:0, g3:0, g4:0, a1:0, a2:0, a3:0, a6:0
+  });
+  renderMixList();
+  renderMixEditor();
 }
-async function renderCost(){ pricesData = await getPrices(); await renderMixOptions(); calcCost(); renderAdminCostEditor(); }
-document.addEventListener('change', (e) => { if (e.target && ['mixSelect','volume','sellPrice'].includes(e.target.id)) { calcCost(); renderAdminCostEditor(); } });
-(async function(){ showSupabaseGuide("dbNotice"); await renderCost(); })();
+async function saveMix(){
+  if (!editableMix) return alert('저장할 배합이 없습니다.');
+  const payload = normalizeMix(editableMix);
+  const isNew = String(selectedAdminMixId).startsWith('new-');
+  let ok = false;
+  if (isNew) {
+    delete payload.id;
+    ok = await addMixDb(payload);
+  } else {
+    ok = await saveMixDb(Number(selectedAdminMixId), payload);
+  }
+  if (!ok) return alert('배합 저장 실패: Supabase 연결 또는 RLS 설정을 확인하세요.');
+  mixSelect.dataset.keepValue = !isNew ? String(selectedAdminMixId) : '';
+  editableMix = null;
+  await renderCost();
+  alert('배합비가 저장되었습니다.');
+}
+async function deleteMix(){
+  if (!selectedAdminMixId) return alert('삭제할 배합을 선택하세요.');
+  if (String(selectedAdminMixId).startsWith('new-')) {
+    editableMix = null;
+    selectedAdminMixId = mixesData[0] ? String(mixesData[0].id) : null;
+    if (selectedAdminMixId) {
+      editableMix = normalizeMix(mixesData.find(m => String(m.id) === String(selectedAdminMixId)) || {});
+    }
+    renderMixList();
+    renderMixEditor();
+    return;
+  }
+  if (!confirm('선택한 배합비를 삭제할까요?')) return;
+  const ok = await deleteMixDb(Number(selectedAdminMixId));
+  if (!ok) return alert('배합 삭제 실패: Supabase 연결 또는 RLS 설정을 확인하세요.');
+  selectedAdminMixId = null;
+  editableMix = null;
+  await renderCost();
+  alert('배합비가 삭제되었습니다.');
+}
+async function savePrices(){
+  const ok = await savePricesDb(editablePrices);
+  if (!ok) return alert('단가 저장 실패: Supabase 연결 또는 RLS 설정을 확인하세요.');
+  pricesData = { ...editablePrices };
+  calcCost();
+  renderPriceEditor();
+  alert('단가가 저장되었습니다.');
+}
+async function renderCost(){
+  pricesData = await getPrices();
+  await renderMixOptions();
+  calcCost();
+  renderAdminCostEditor();
+}
+document.addEventListener('change', (e) => {
+  if (e.target && e.target.id === 'mixSelect') {
+    applySelectedMixPrice();
+    calcCost();
+    if (isAdmin()) {
+      selectedAdminMixId = mixSelect.value;
+      editableMix = normalizeMix(mixesData.find(m => String(m.id) === String(mixSelect.value)) || {});
+      renderAdminCostEditor();
+    }
+  }
+  if (e.target && ['volume','sellPrice'].includes(e.target.id)) calcCost();
+});
+(async function(){ showSupabaseGuide('dbNotice'); await renderCost(); })();
 </script>
 </body>
 </html>

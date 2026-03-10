@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>관리자 관리</title>
-  <link rel="stylesheet" href="./style.css?v=3" />
+  <link rel="stylesheet" href="./style.css?v=4" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./app.js?v=3"></script>
+  <script src="./app.js?v=4"></script>
 </head>
 <body>
   <div class="wrap">
@@ -22,25 +22,11 @@
       <div class="grid2">
         <div class="field">
           <label>아이디</label>
-          <input
-            id="loginId"
-            type="text"
-            autocomplete="username"
-            autocapitalize="none"
-            autocorrect="off"
-            spellcheck="false"
-          />
+          <input id="loginId" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" />
         </div>
         <div class="field">
           <label>비밀번호</label>
-          <input
-            id="loginPw"
-            type="password"
-            autocomplete="current-password"
-            autocapitalize="none"
-            autocorrect="off"
-            spellcheck="false"
-          />
+          <input id="loginPw" type="password" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" />
         </div>
       </div>
 
@@ -61,26 +47,12 @@
 
           <div class="field">
             <label>새 관리자 아이디</label>
-            <input
-              id="newAdminId"
-              type="text"
-              autocomplete="username"
-              autocapitalize="none"
-              autocorrect="off"
-              spellcheck="false"
-            />
+            <input id="newAdminId" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" />
           </div>
 
           <div class="field">
             <label>새 관리자 비밀번호</label>
-            <input
-              id="newAdminPw"
-              type="password"
-              autocomplete="new-password"
-              autocapitalize="none"
-              autocorrect="off"
-              spellcheck="false"
-            />
+            <input id="newAdminPw" type="password" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" />
           </div>
 
           <button class="primary" onclick="saveAdminInfo()">관리자 정보 저장</button>
@@ -90,15 +62,45 @@
           <h2>출하량 계산기 디폴트값 관리</h2>
           <div style="height:16px"></div>
 
-          <div class="grid2">
-            <div class="field">
+          <div class="field">
+            <div class="label-row">
               <label>왕복시간</label>
-              <div class="inline">
-                <input id="d_roundTrip" type="number" />
-                <span class="suffix">분</span>
+              <button type="button" class="tiny" onclick="toggleAdminDetail()" id="adminDetailBtn">상세설정</button>
+            </div>
+            <div class="inline">
+              <input id="d_roundTrip" type="number" readonly />
+              <span class="suffix">분</span>
+            </div>
+            <div class="helper">왕복시간 = 왕복 이동시간 + 상차대기 + 하차대기</div>
+          </div>
+
+          <div id="adminDetailWrap" class="detail-panel" style="display:none">
+            <div class="grid3 compact-grid">
+              <div class="field">
+                <label>왕복 이동시간</label>
+                <div class="inline">
+                  <input id="d_driveTime" type="number" oninput="syncAdminRoundTrip()" />
+                  <span class="suffix">분</span>
+                </div>
+              </div>
+              <div class="field">
+                <label>상차대기</label>
+                <div class="inline">
+                  <input id="d_loadWait" type="number" oninput="syncAdminRoundTrip()" />
+                  <span class="suffix">분</span>
+                </div>
+              </div>
+              <div class="field">
+                <label>하차대기</label>
+                <div class="inline">
+                  <input id="d_unloadWait" type="number" oninput="syncAdminRoundTrip()" />
+                  <span class="suffix">분</span>
+                </div>
               </div>
             </div>
+          </div>
 
+          <div class="grid2 compact-grid">
             <div class="field">
               <label>업무시간</label>
               <div class="inline">
@@ -106,7 +108,6 @@
                 <span class="suffix">시간</span>
               </div>
             </div>
-
             <div class="field">
               <label>차량 1대 적재량</label>
               <div class="inline">
@@ -114,7 +115,9 @@
                 <span class="suffix">m³</span>
               </div>
             </div>
+          </div>
 
+          <div class="grid2 compact-grid">
             <div class="field">
               <label>보유 차량대수</label>
               <div class="inline">
@@ -122,7 +125,6 @@
                 <span class="suffix">대</span>
               </div>
             </div>
-
             <div class="field">
               <label>투입 예정 용차</label>
               <div class="inline">
@@ -130,13 +132,13 @@
                 <span class="suffix">대</span>
               </div>
             </div>
+          </div>
 
-            <div class="field">
-              <label>목표 하루 출하량</label>
-              <div class="inline">
-                <input id="d_target" type="number" />
-                <span class="suffix">m³</span>
-              </div>
+          <div class="field">
+            <label>목표 하루 출하량</label>
+            <div class="inline">
+              <input id="d_target" type="number" />
+              <span class="suffix">m³</span>
             </div>
           </div>
 
@@ -165,6 +167,21 @@ async function getAdminAuth(){
   return data;
 }
 
+function syncAdminRoundTrip(){
+  const drive = Number(document.getElementById('d_driveTime').value || 0);
+  const load = Number(document.getElementById('d_loadWait').value || 0);
+  const unload = Number(document.getElementById('d_unloadWait').value || 0);
+  document.getElementById('d_roundTrip').value = drive + load + unload;
+}
+
+function toggleAdminDetail(forceOpen){
+  const wrap = document.getElementById('adminDetailWrap');
+  const btn = document.getElementById('adminDetailBtn');
+  const open = typeof forceOpen === 'boolean' ? forceOpen : wrap.style.display === 'none';
+  wrap.style.display = open ? 'block' : 'none';
+  btn.textContent = open ? '상세닫기' : '상세설정';
+}
+
 async function loginAdmin(){
   const auth = await getAdminAuth();
 
@@ -176,10 +193,7 @@ async function loginAdmin(){
   const id = document.getElementById('loginId').value.trim();
   const pw = document.getElementById('loginPw').value.trim();
 
-  if (
-    id === String(auth.admin_id).trim() &&
-    pw === String(auth.admin_pw).trim()
-  ){
+  if (id === String(auth.admin_id).trim() && pw === String(auth.admin_pw).trim()){
     saveJson('remicon-admin-auth', true);
     alert('관리자 로그인되었습니다.');
     renderAdminPage();
@@ -209,13 +223,7 @@ async function saveAdminInfo(){
   const adminId = document.getElementById('newAdminId').value.trim() || String(auth.admin_id).trim();
   const adminPw = document.getElementById('newAdminPw').value.trim() || String(auth.admin_pw).trim();
 
-  const { error } = await client
-    .from('admin_users')
-    .update({
-      admin_id: adminId,
-      admin_pw: adminPw
-    })
-    .eq('id', auth.id);
+  const { error } = await client.from('admin_users').update({ admin_id: adminId, admin_pw: adminPw }).eq('id', auth.id);
 
   if (error) {
     console.error("saveAdminInfo error:", error);
@@ -236,7 +244,10 @@ async function fillAdminForms(){
   }
 
   const d = await getDispatchDefaults();
-  document.getElementById('d_roundTrip').value = d.roundTrip;
+  document.getElementById('d_driveTime').value = d.driveTime;
+  document.getElementById('d_loadWait').value = d.loadWait;
+  document.getElementById('d_unloadWait').value = d.unloadWait;
+  syncAdminRoundTrip();
   document.getElementById('d_workHours').value = d.workHours;
   document.getElementById('d_loadPerTruck').value = d.loadPerTruck;
   document.getElementById('d_owned').value = d.owned;
@@ -252,6 +263,9 @@ async function saveDispatchDefaultFromAdmin(){
 
   const d = {
     roundTrip: Number(document.getElementById('d_roundTrip').value || 0),
+    driveTime: Number(document.getElementById('d_driveTime').value || 0),
+    loadWait: Number(document.getElementById('d_loadWait').value || 0),
+    unloadWait: Number(document.getElementById('d_unloadWait').value || 0),
     workHours: Number(document.getElementById('d_workHours').value || 0),
     loadPerTruck: Number(document.getElementById('d_loadPerTruck').value || 0),
     owned: Number(document.getElementById('d_owned').value || 0),

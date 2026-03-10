@@ -16,11 +16,43 @@
     <div class="grid2">
       <div class="card">
         <h2>입력</h2><div style="height:16px"></div>
-        <div class="field"><label>왕복시간</label><div class="inline"><input id="roundTrip" type="number" /><span class="suffix">분</span></div></div>
+
+        <div class="field dispatch-primary-field">
+          <div class="label-row tight-label-row">
+            <label>왕복시간</label>
+            <button type="button" class="tiny" onclick="toggleDispatchDetail()" id="dispatchDetailBtn">상세설정</button>
+          </div>
+          <div class="inline">
+            <input id="roundTrip" type="number" readonly />
+            <span class="suffix">분</span>
+          </div>
+          <div class="helper">왕복시간 = 왕복 이동시간 + 상차대기 + 하차대기</div>
+        </div>
+
+        <div id="dispatchDetailWrap" class="detail-panel" style="display:none">
+          <div class="grid3 compact-grid">
+            <div class="field">
+              <label>왕복 이동시간</label>
+              <div class="inline"><input id="driveTime" type="number" oninput="syncRoundTripFromDetail()" /><span class="suffix">분</span></div>
+            </div>
+            <div class="field">
+              <label>상차대기</label>
+              <div class="inline"><input id="loadWait" type="number" oninput="syncRoundTripFromDetail()" /><span class="suffix">분</span></div>
+            </div>
+            <div class="field">
+              <label>하차대기</label>
+              <div class="inline"><input id="unloadWait" type="number" oninput="syncRoundTripFromDetail()" /><span class="suffix">분</span></div>
+            </div>
+          </div>
+        </div>
+
         <div class="field"><label>업무시간</label><div class="inline"><input id="workHours" type="number" /><span class="suffix">시간</span></div></div>
-        <div class="field"><label>차량 1대 적재량</label><div class="inline"><input id="loadPerTruck" type="number" /><span class="suffix">m³</span></div></div>
-        <div class="field"><label>보유 차량대수</label><div class="inline"><input id="owned" type="number" /><span class="suffix">대</span></div></div>
-        <div class="field"><label>투입 예정 용차</label><div class="inline"><input id="rental" type="number" /><span class="suffix">대</span></div></div>
+
+        <div class="grid2 compact-grid">
+          <div class="field"><label>보유 차량대수</label><div class="inline"><input id="owned" type="number" /><span class="suffix">대</span></div></div>
+          <div class="field"><label>투입 예정 용차</label><div class="inline"><input id="rental" type="number" /><span class="suffix">대</span></div></div>
+        </div>
+
         <div class="field"><label>목표 하루 출하량</label><div class="inline"><input id="target" type="number" /><span class="suffix">m³</span></div></div>
         <div class="row-actions">
           <button class="primary" onclick="calcDispatch()">계산</button>
@@ -45,30 +77,55 @@
     </div>
   </div>
 <script>
+function syncRoundTripFromDetail(){
+  const drive = Number(driveTime.value || 0);
+  const load = Number(loadWait.value || 0);
+  const unload = Number(unloadWait.value || 0);
+  roundTrip.value = drive + load + unload;
+}
+
+function toggleDispatchDetail(forceOpen){
+  const wrap = document.getElementById('dispatchDetailWrap');
+  const btn = document.getElementById('dispatchDetailBtn');
+  const open = typeof forceOpen === 'boolean' ? forceOpen : wrap.style.display === 'none';
+  wrap.style.display = open ? 'block' : 'none';
+  btn.textContent = open ? '상세닫기' : '상세설정';
+}
+
 async function fillDispatchForm(){
   const d = await getDispatchDefaults();
-  roundTrip.value = d.roundTrip; workHours.value = d.workHours; loadPerTruck.value = d.loadPerTruck;
-  owned.value = d.owned; rental.value = d.rental; target.value = d.target;
+  driveTime.value = d.driveTime;
+  loadWait.value = d.loadWait;
+  unloadWait.value = d.unloadWait;
+  syncRoundTripFromDetail();
+  workHours.value = d.workHours;
+  owned.value = d.owned;
+  rental.value = d.rental;
+  target.value = d.target;
   dispatchAdminNote.textContent = isAdmin() ? '관리자 로그인 상태입니다. DB 기본값 저장 가능.' : 'DB 기본값 저장도 가능하지만 관리자 로그인 후 사용을 권장합니다.';
 }
 
 function calcDispatch(){
+  syncRoundTripFromDetail();
+
   const rt = Number(roundTrip.value || 0),
         wh = Number(workHours.value || 0),
-        lpt = Number(loadPerTruck.value || 0),
+        lpt = Number(DEFAULT_DISPATCH_LOAD_PER_TRUCK || 6),
         ow = Number(owned.value || 0),
         re = Number(rental.value || 0),
         tg = Number(target.value || 0);
 
   const total = ow + re;
-  const turns = rt > 0 ? 60 / rt : 0;              // 시간당 회전수
-  const turnsDaily = turns * wh;                   // 1대당 하루 회전수
-  const hourly = total * turns * lpt;              // 시간당 출하량
-  const daily = hourly * wh;                       // 하루 출하량
-  const tang = hourly / 6;                         // 시간당 출하량 기준 탕수
-  const dailyTang = daily / 6;                     // 하루 가능 출하량 기준 탕수
+  const actualTurns = rt > 0 ? 60 / rt : 0;
+  const actualTurnsDaily = actualTurns * wh;
+  const turnsDaily = total > 0 && lpt > 0 ? tg / total / lpt : 0;
+  const turns = wh > 0 ? turnsDaily / wh : 0;
+  const hourly = total * actualTurns * lpt;
+  const daily = hourly * wh;
+  const tang = hourly / 6;
+  const dailyTang = daily / 6;
 
-  const needed = turns * lpt * wh > 0 ? tg / (turns * lpt * wh) : 0;
+  const needed = actualTurns * lpt * wh > 0 ? tg / (actualTurns * lpt * wh) : 0;
   const extra = Math.max(0, Math.ceil(needed - ow));
   const diff = total - needed;
 
@@ -82,23 +139,30 @@ function calcDispatch(){
 
   if (diff >= 0){
     dispatchNotice.className = 'notice good';
-    dispatchNotice.textContent = `현재 계획으로 목표 대비 ${diff.toFixed(1)}대 여유입니다.`;
+    dispatchNotice.textContent = `현재 계획으로 목표를 달성할 수 있습니다. 현재 조건 기준 ${actualTurnsDaily.toFixed(1)}회/대로 운행하면 됩니다.`;
   } else {
     dispatchNotice.className = 'notice bad';
-    dispatchNotice.textContent = `현재 계획으로 목표 대비 ${Math.abs(diff).toFixed(1)}대 부족합니다.`;
+    dispatchNotice.textContent = `현재 조건 기준 목표 달성을 위해 차량이 ${Math.abs(diff).toFixed(1)}대 부족합니다. 차량당 ${turnsDaily.toFixed(1)}회/일 운행이 필요합니다.`;
   }
 }
 
 async function resetDispatch(){ await fillDispatchForm(); calcDispatch(); }
 async function saveDispatchDefaults(){
-  const d = { roundTrip:Number(roundTrip.value||0), workHours:Number(workHours.value||0), loadPerTruck:Number(loadPerTruck.value||0), owned:Number(owned.value||0), rental:Number(rental.value||0), target:Number(target.value||0) };
+  const d = {
+    roundTrip:Number(roundTrip.value||0),
+    driveTime:Number(driveTime.value||0),
+    loadWait:Number(loadWait.value||0),
+    unloadWait:Number(unloadWait.value||0),
+    workHours:Number(workHours.value||0),
+    loadPerTruck:Number(DEFAULT_DISPATCH_LOAD_PER_TRUCK || 6),
+    owned:Number(owned.value||0),
+    rental:Number(rental.value||0),
+    target:Number(target.value||0)
+  };
   const ok = await saveDispatchDefaultsToDb(d);
   alert(ok ? '출하량 계산기 디폴트값이 저장되었습니다.' : 'DB 저장 실패: app.js의 Supabase 값과 RLS 설정을 확인하세요.');
 }
 (async function(){ showSupabaseGuide("dbNotice"); await fillDispatchForm(); calcDispatch(); })();
-
-
 </script>
 </body>
 </html>
-

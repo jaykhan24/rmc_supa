@@ -25,7 +25,7 @@ button:hover{transform:translateY(-1px)}
 .suffix{min-width:52px;color:var(--muted);font-size:13px}
 .stat{background:#f8fafc;border-radius:18px;padding:16px}
 .stat .label{font-size:13px;color:var(--muted)}
-.stat .value{margin-top:6px;font-size:28px;font-weight:800}
+.stat .value{margin-top:6px;font-size:28px;font-weight:700}
 .notice{border-radius:18px;padding:14px;font-size:14px}
 .notice.good{background:var(--good-bg);color:var(--good)}
 .notice.bad{background:var(--bad-bg);color:var(--bad)}
@@ -58,3 +58,98 @@ a:focus{outline:none}
   margin-top:-1px;
   display:block;
 }
+
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.compact-grid{gap:14px}
+.label-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+button.tiny{padding:8px 12px;border-radius:999px;font-size:13px}
+.helper{margin-top:6px;color:var(--muted);font-size:13px;line-height:1.4}
+.detail-panel{margin:-2px 0 14px;padding:16px;border:1px dashed var(--line);border-radius:18px;background:#f8fafc}
+@media (max-width: 649px){ .grid3{grid-template-columns:1fr} }
+
+
+button.primary{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+.nav a.active{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+.admin-editor-wrap{padding:20px}
+.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.section-head-spread{margin-bottom:14px}
+.admin-section-card{border:1px solid var(--line);border-radius:24px;padding:18px;margin-top:18px;background:#fff}
+.admin-split-layout{display:grid;grid-template-columns:280px 1fr;gap:18px}
+.admin-list-card,.admin-detail-card{border:1px solid var(--line);border-radius:20px;padding:16px;background:#f8fafc}
+.admin-detail-title{font-size:15px;font-weight:700;margin-bottom:12px}
+.mini-table-head,.admin-list-row{display:grid;grid-template-columns:1.4fr .8fr;gap:12px;align-items:center}
+.mini-table-head{padding:0 10px 10px;font-size:14px;font-weight:700;color:var(--text);border-bottom:1px solid var(--line)}
+.admin-list{margin-top:8px;display:flex;flex-direction:column;gap:8px;max-height:520px;overflow:auto}
+.admin-list-row{width:100%;padding:12px 10px;border:1px solid transparent;border-radius:14px;background:#fff;text-align:left}
+.admin-list-row.active{background:#e0e7ff;border-color:#c7d2fe;font-weight:700}
+.admin-grid-mix{grid-template-columns:repeat(4,1fr)}
+.admin-grid-price{grid-template-columns:repeat(4,1fr)}
+@media (max-width: 960px){
+  .admin-split-layout{grid-template-columns:1fr}
+}
+@media (max-width: 720px){
+  .admin-grid-mix,.admin-grid-price{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width: 520px){
+  .admin-grid-mix,.admin-grid-price{grid-template-columns:1fr}
+}
+
+
+.price-pair-field .price-pair-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+}
+#oPriceDisplay{
+  background:#f8fafc;
+}
+@media (max-width: 720px){
+  .price-pair-field .price-pair-grid{
+    grid-template-columns:1fr;
+  }
+}
+
+
+.summary-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  grid-template-areas:
+    "sales sales"
+    "cost cost"
+    "profit profit"
+    "margin discount";
+  gap:16px;
+}
+.summary-grid > :nth-child(1){grid-area:sales}
+.summary-grid > :nth-child(2){grid-area:cost}
+.summary-grid > :nth-child(3){grid-area:profit}
+.summary-grid > :nth-child(4){grid-area:margin}
+.summary-grid > :nth-child(5){grid-area:discount}
+.summary-grid .stat{min-width:0}
+.summary-grid .value{word-break:keep-all}
+
+
+/* 260310_051530 업데이트 */
+body{font-weight:500}
+button,.nav a{font-weight:700}
+.stat .value,.summary-grid .value{font-weight:700}
+.tang{font-weight:600}
+
+.cost-price-layout{margin-bottom:10px}
+.cost-price-layout .price-pair-grid{column-gap:28px;row-gap:14px}
+.cost-subfield{margin-bottom:0}
+.cost-subfield label{font-size:15px;margin-bottom:2px}
+
+.dispatch-primary-field{margin-bottom:8px}
+.tight-label-row{margin-bottom:6px}
+.dispatch-primary-field .helper{margin-top:4px}
+#dispatchDetailWrap.detail-panel{margin:0 0 14px;padding:14px 16px}
+
+@media (max-width: 720px){
+  .cost-price-layout .price-pair-grid{grid-template-columns:1fr}
+}
+
+
+.section-head-inline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.toggle-chip{padding:8px 12px;border-radius:999px;font-size:13px;line-height:1;border-color:#cbd5e1;background:#fff}
+.toggle-chip.active{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;font-weight:700}
