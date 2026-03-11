@@ -87,12 +87,6 @@
 
         <div style="height:14px"></div>
         <div id="routeNotice" class="notice warn">연산 대기 중</div>
-        <div id="routeDebug" class="route-debug-box">
-          <div class="route-debug-item">앱 키 <strong id="routeDebugKey">확인 전</strong></div>
-          <div class="route-debug-item">지도 SDK <strong id="routeDebugSdk">대기</strong></div>
-          <div class="route-debug-item">주소 검색 API <strong id="routeDebugPoi">대기</strong></div>
-          <div class="route-debug-item">경로 API <strong id="routeDebugRoute">대기</strong></div>
-        </div>
       </div>
     </div>
 
@@ -102,14 +96,23 @@
           <h2>동선 지도</h2>
           <div class="sub">출발지에서 도착지까지 편도 경로를 지도에 표시합니다. 결과 카드에서는 왕복 기준 거리와 시간을 같이 보여줍니다.</div>
         </div>
+        
         <div class="route-legend">
           <span class="route-legend-item"><i class="route-dot start"></i>출발</span>
           <span class="route-legend-item"><i class="route-dot end"></i>도착</span>
         </div>
       </div>
       <div id="routeMap" class="route-map"><div id="routeMapPlaceholder" class="route-map-placeholder">TMAP app key 입력 후 이 페이지를 열면 지도와 동선이 표시됩니다.</div></div>
+                <div id="routeDebug" class="route-debug-box">
+          <div class="route-debug-item">앱 키 <strong id="routeDebugKey">확인 전</strong></div>
+          <div class="route-debug-item">지도 SDK <strong id="routeDebugSdk">대기</strong></div>
+          <div class="route-debug-item">주소 검색 API <strong id="routeDebugPoi">대기</strong></div>
+          <div class="route-debug-item">경로 API <strong id="routeDebugRoute">대기</strong></div>
+        </div>
     </div>
   </div>
+
+
 
   <div id="routeSearchModal" class="modal-backdrop" style="display:none">
     <div class="modal-panel">
