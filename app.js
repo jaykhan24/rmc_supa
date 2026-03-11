@@ -1,5 +1,7 @@
 const SUPABASE_URL = "https://ugjdqumwtoqgokjpikeb.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVnamRxdW13dG9xZ29ranBpa2ViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTgwNDQsImV4cCI6MjA4ODU5NDA0NH0.O3k9lkxewvzw3anSjJbNt9CcdkQvy5GmLnA7V7QBUs0";
+const TMAP_APP_KEY = "ij9025fJd5aq5evJjP3O51mXRtYx5zwT6G4PxySf"; // 반드시 따옴표를 유지한 채 본인 키로 교체
+const DEFAULT_ROUTE_START_ADDRESS = "전라남도 영광군 영광읍 신하리 392";
 
 const DEFAULT_PRICES = {
   C1: 97500, C2: 93500, C3: 33000, S1: 22500, S2: 22500, S3: 18500,
@@ -56,6 +58,7 @@ function topNav(active){
   <div class="nav">
     <a class="${active==='home'?'active':''}" href="./index.html">🏠</a>
     <a class="${active==='dispatch'?'active':''}" href="./dispatch.html">🚚 출하량계산기</a>
+    <a class="${active==='route'?'active':''}" href="./route.html">🗺️ 예상경로계산</a>
     <a class="${active==='cost'?'active':''}" href="./cost.html">💰 원가계산기</a>
     <a class="${active==='admin'?'active':''}" href="./admin.html">⚙️ 관리자 관리</a>
     ${isAdmin() ? '<a href="#" onclick="logout();return false;">🔓 로그아웃</a>' : '<a href="./admin.html">🔒 관리자 로그인</a>'}

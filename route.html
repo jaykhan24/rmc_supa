@@ -1,0 +1,874 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>예상경로계산</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./app.js"></script>
+  <script>
+    if (typeof TMAP_APP_KEY === "string" && TMAP_APP_KEY && TMAP_APP_KEY !== "YOUR_TMAP_APP_KEY") {
+      document.write('<script src="https://apis.openapi.sk.com/tmap/jsv2?version=1&appKey=' + encodeURIComponent(TMAP_APP_KEY) + '"><\/script>');
+    }
+  </script>
+</head>
+<body>
+  <div class="wrap">
+    <script>document.write(hero("예상경로계산", "해당 지도는 TMAP 대형차 기준, 최소 소요 시간을 결과를 보여주며, 실제 소요시간과 다를 수 있습니다."));</script>
+    <script>document.write(topNav('route'));</script>
+
+    <div id="routeKeyNotice" class="notice warn" style="margin-bottom:20px"></div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>입력</h2><div style="height:16px"></div>
+
+        <div class="field route-search-field">
+          <label>출발지</label>
+          <div class="route-field-row">
+            <input id="startAddress" type="text" />
+            <button type="button" class="tiny" onclick="openRouteSearch('start')">검색</button>
+          </div>
+          <div class="helper route-input-note"></div>
+        </div>
+
+        <div class="field route-search-field">
+          <label>도착지</label>
+          <div class="route-field-row">
+            <input id="endAddress" type="text" placeholder="주소 또는 현장명을 검색해서 선택" />
+            <button type="button" class="tiny" onclick="openRouteSearch('end')">검색</button>
+          </div>
+          <div class="helper route-input-note"></div>
+        </div>
+
+        <div class="row-actions">
+          <button class="primary" onclick="calcRoutePlan()">동선 계산</button>
+          <button onclick="resetRouteForm()">기본 출발지</button>
+          <button onclick="clearRouteMapAndResult()">지도 초기화</button>
+        </div>
+
+        <div id="routeInputNotice" class="notice warn" style="margin-top:12px">
+          <B>검색</B> 후 주소를 선택하면 정확도를 올릴 수 있습니다.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>결과</h2><div style="height:16px"></div> 
+
+        <div class="route-result-grid">
+          <div class="stat route-flow-stat">
+            <div class="label">이동 동선</div>
+            <div class="route-flow-value" id="routeFlowValue">
+              출발지와 도착지를 검색한 뒤 동선 계산을 눌러주세요.
+            </div>
+          </div>
+
+          <div class="stat">
+            <div class="label">편도 거리</div>
+            <div class="value" id="routeDistance">0.0km</div>
+          </div>
+
+          <div class="stat">
+            <div class="label">편도 소요시간</div>
+            <div class="value" id="routeOneWayTime">0분</div>
+          </div>
+
+          <div class="stat">
+            <div class="label">왕복 거리</div>
+            <div class="value" id="routeRoundDistance">0.0km</div>
+          </div>
+
+          <div class="stat">
+            <div class="label">왕복 소요시간</div>
+            <div class="value" id="routeRoundTime">0분</div>
+          </div>
+        </div>
+
+        <div style="height:14px"></div>
+        <div id="routeNotice" class="notice warn">연산 대기 중</div>
+        <div id="routeDebug" class="route-debug-box">
+          <div class="route-debug-item">앱 키 <strong id="routeDebugKey">확인 전</strong></div>
+          <div class="route-debug-item">지도 SDK <strong id="routeDebugSdk">대기</strong></div>
+          <div class="route-debug-item">주소 검색 API <strong id="routeDebugPoi">대기</strong></div>
+          <div class="route-debug-item">경로 API <strong id="routeDebugRoute">대기</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card route-map-card">
+      <div class="section-head section-head-spread">
+        <div>
+          <h2>동선 지도</h2>
+          <div class="sub">출발지에서 도착지까지 편도 경로를 지도에 표시합니다. 결과 카드에서는 왕복 기준 거리와 시간을 같이 보여줍니다.</div>
+        </div>
+        <div class="route-legend">
+          <span class="route-legend-item"><i class="route-dot start"></i>출발</span>
+          <span class="route-legend-item"><i class="route-dot end"></i>도착</span>
+        </div>
+      </div>
+      <div id="routeMap" class="route-map"><div id="routeMapPlaceholder" class="route-map-placeholder">TMAP app key 입력 후 이 페이지를 열면 지도와 동선이 표시됩니다.</div></div>
+    </div>
+  </div>
+
+  <div id="routeSearchModal" class="modal-backdrop" style="display:none">
+    <div class="modal-panel">
+      <div class="section-head section-head-spread">
+        <div>
+          <h3>주소 검색</h3>
+          <div class="sub" id="routeSearchTargetLabel">도착지에 넣을 주소를 검색합니다.</div>
+        </div>
+        <button type="button" class="tiny" onclick="closeRouteSearch()">닫기</button>
+      </div>
+
+      <div class="field">
+        <label>검색어</label>
+        <div class="route-search-row">
+          <input id="routeSearchKeyword" type="text" placeholder="도로명, 지번, 현장명, 건물명 등" />
+          <button type="button" class="primary" onclick="searchRouteAddress()">검색</button>
+        </div>
+        <div class="helper">검색 결과를 누르면 현재 선택한 입력칸에 바로 반영됩니다.</div>
+      </div>
+
+      <div id="routeSearchStatus" class="notice warn" style="display:none"></div>
+
+      <div class="route-recent-wrap">
+        <div class="label-row">
+          <label>최근 선택</label>
+        </div>
+        <div id="routeRecentList" class="route-chip-list"></div>
+      </div>
+
+      <div id="routeSearchResults" class="route-search-results"></div>
+    </div>
+  </div>
+
+<script>
+const ROUTE_FORM_KEY = 'remicon-route-form';
+const ROUTE_RECENT_KEY = 'remicon-route-recent';
+const ROUTE_START_FALLBACK = (typeof DEFAULT_ROUTE_START_ADDRESS === 'string' && DEFAULT_ROUTE_START_ADDRESS) ? DEFAULT_ROUTE_START_ADDRESS : '전라남도 영광군 영광읍 신하리 392';
+const ROUTE_TMAP_KEY = (typeof TMAP_APP_KEY === 'string' && TMAP_APP_KEY) ? TMAP_APP_KEY : '';
+const DEFAULT_ROUTE_FORM = {
+  startLabel: ROUTE_START_FALLBACK,
+  startCoord: null,
+  endLabel: '',
+  endCoord: null
+};
+
+let routeMap = null;
+let routePolyline = null;
+let routeMarkers = [];
+let routeSearchTarget = 'end';
+let routeSearchResultsCache = [];
+let tmapLoading = false;
+
+const routeKeyNoticeEl = document.getElementById('routeKeyNotice');
+const startAddress = document.getElementById('startAddress');
+const endAddress = document.getElementById('endAddress');
+const routeInputNotice = document.getElementById('routeInputNotice');
+const routeFlowValue = document.getElementById('routeFlowValue');
+const routeDistance = document.getElementById('routeDistance');
+const routeOneWayTime = document.getElementById('routeOneWayTime');
+const routeRoundDistance = document.getElementById('routeRoundDistance');
+const routeRoundTime = document.getElementById('routeRoundTime');
+const routeNotice = document.getElementById('routeNotice');
+const routeMapEl = document.getElementById('routeMap');
+const routeMapPlaceholder = document.getElementById('routeMapPlaceholder');
+const routeDebugKey = document.getElementById('routeDebugKey');
+const routeDebugSdk = document.getElementById('routeDebugSdk');
+const routeDebugPoi = document.getElementById('routeDebugPoi');
+const routeDebugRoute = document.getElementById('routeDebugRoute');
+const routeSearchModal = document.getElementById('routeSearchModal');
+const routeSearchTargetLabel = document.getElementById('routeSearchTargetLabel');
+const routeSearchKeyword = document.getElementById('routeSearchKeyword');
+const routeSearchStatus = document.getElementById('routeSearchStatus');
+const routeRecentList = document.getElementById('routeRecentList');
+const routeSearchResults = document.getElementById('routeSearchResults');
+
+
+function hasValidTmapKey(){
+  return typeof ROUTE_TMAP_KEY === 'string' && ROUTE_TMAP_KEY && ROUTE_TMAP_KEY !== 'YOUR_TMAP_APP_KEY';
+}
+
+function setRouteDebug(el, text, state){
+  if (!el) return;
+  el.textContent = text;
+  el.className = state ? state : '';
+}
+
+function setMapPlaceholder(message){
+  if (!routeMapEl) return;
+  routeMapEl.innerHTML = '<div id="routeMapPlaceholder" class="route-map-placeholder">' + escapeHtml(message || '') + '</div>';
+}
+
+function hideMapPlaceholder(){
+  const placeholder = document.getElementById('routeMapPlaceholder');
+  if (placeholder) placeholder.remove();
+}
+
+function formatKm(meters){
+  return (Number(meters || 0) / 1000).toFixed(1) + 'km';
+}
+
+function formatMinutes(seconds){
+  return Math.round(Number(seconds || 0) / 60) + '분';
+}
+
+function firstValue(){
+  for (const value of arguments){
+    if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+  }
+  return '';
+}
+
+function buildJibunAddress(item){
+  const detailNo = [item.firstNo, item.secondNo].filter(Boolean).join('-');
+  return [item.upperAddrName, item.middleAddrName, item.lowerAddrName, item.detailAddrName, detailNo].filter(Boolean).join(' ');
+}
+
+function buildRoadAddress(item){
+  const newAddressRaw = item?.newAddressList?.newAddress;
+  const roadObj = Array.isArray(newAddressRaw) ? newAddressRaw[0] : newAddressRaw;
+  if (roadObj){
+    const numberText = [roadObj.buildingIndex, roadObj.buildingName].filter(Boolean).join(' ');
+    const roadAddress = [
+      roadObj.province || item.upperAddrName,
+      roadObj.city || item.middleAddrName,
+      roadObj.guGun || item.lowerAddrName,
+      roadObj.eupMyun || item.detailAddrName,
+      roadObj.roadName,
+      numberText
+    ].filter(Boolean).join(' ');
+    if (roadAddress) return roadAddress;
+  }
+  return '';
+}
+
+function toWgs84FromMaybe3857(x, y){
+  if (!window.Tmapv2 || !window.Tmapv2.Projection) return null;
+  try {
+    const point = new Tmapv2.Point(Number(x), Number(y));
+    const converted = Tmapv2.Projection.convertEPSG3857ToWGS84GEO(point);
+    if (!converted) return null;
+    return { lat: Number(converted._lat), lng: Number(converted._lng) };
+  } catch (error){
+    return null;
+  }
+}
+
+function normalizeCoordPair(latLike, lngLike){
+  const lat = Number(latLike);
+  const lng = Number(lngLike);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180){
+    return { lat, lng };
+  }
+
+  return toWgs84FromMaybe3857(lng, lat);
+}
+
+function pickPoiCoord(item){
+  const candidates = [
+    [item.frontLat, item.frontLon],
+    [item.lat, item.lon],
+    [item.latitude, item.longitude],
+    [item.noorLat, item.noorLon],
+    [item.newAddressList?.newAddress?.[0]?.centerLat, item.newAddressList?.newAddress?.[0]?.centerLon],
+    [item.newAddressList?.newAddress?.centerLat, item.newAddressList?.newAddress?.centerLon]
+  ];
+
+  for (const [latLike, lngLike] of candidates){
+    const coord = normalizeCoordPair(latLike, lngLike);
+    if (coord) return coord;
+  }
+
+  return null;
+}
+
+function normalizePoiResults(data){
+  let pois = data?.searchPoiInfo?.pois?.poi || data?.searchPoiInfo?.pois || data?.pois?.poi || [];
+  if (!Array.isArray(pois)) pois = pois ? [pois] : [];
+
+  return pois.map((item, index) => {
+    const roadAddress = firstValue(item.roadAddress, item.fullAddressRoad, buildRoadAddress(item));
+    const jibunAddress = firstValue(item.fullAddress, buildJibunAddress(item));
+    const coord = pickPoiCoord(item);
+
+    return {
+      id: firstValue(item.id, item.poiId, item.pkey, index),
+      name: firstValue(item.name, item.poiName, roadAddress, jibunAddress, `검색 결과 ${index + 1}`),
+      roadAddress,
+      jibunAddress,
+      coord
+    };
+  }).filter(item => item.coord);
+}
+
+async function fetchRoutePois(keyword){
+  if (!hasValidTmapKey()) throw new Error('TMAP key missing');
+
+  const url = 'https://apis.openapi.sk.com/tmap/pois?version=1&format=json&count=10&searchType=all&searchKeyword=' + encodeURIComponent(keyword);
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { appKey: ROUTE_TMAP_KEY }
+  });
+
+  const rawText = await response.text();
+  let data = {};
+  try { data = rawText ? JSON.parse(rawText) : {}; } catch (error) { data = {}; }
+
+  if (!response.ok){
+    const apiMessage = data?.error?.message || data?.errorMessage || data?.message || ('HTTP ' + response.status);
+    setRouteDebug(routeDebugPoi, '실패 (' + response.status + ')', 'bad');
+    throw new Error('주소 검색 실패: ' + apiMessage);
+  }
+
+  const results = normalizePoiResults(data);
+
+  if (!results.length){
+    setRouteDebug(routeDebugPoi, '결과 없음', 'bad');
+    throw new Error('검색 결과 없음');
+  }
+
+  setRouteDebug(routeDebugPoi, '정상', 'ok');
+  return results;
+}
+
+function renderRecentRoutes(){
+  const recent = loadJson(ROUTE_RECENT_KEY, []);
+  if (!recent.length){
+    routeRecentList.innerHTML = '<div class="route-empty-state">최근 선택한 주소가 아직 없습니다.</div>';
+    return;
+  }
+
+  routeRecentList.innerHTML = recent.map((item, index) => {
+    const text = item.label || item.roadAddress || item.jibunAddress || '최근 주소';
+    return '<button type="button" class="route-chip" onclick="applyRecentRoute(' + index + ')">' + escapeHtml(text) + '</button>';
+  }).join('');
+}
+
+function addRecentRoute(item){
+  if (!item || !item.coord) return;
+  const recent = loadJson(ROUTE_RECENT_KEY, []);
+  const label = item.label || item.roadAddress || item.jibunAddress || item.name;
+  const next = [
+    { label, roadAddress: item.roadAddress || '', jibunAddress: item.jibunAddress || '', coord: item.coord },
+    ...recent.filter(v => (v.label || '') !== label)
+  ].slice(0, 8);
+  saveJson(ROUTE_RECENT_KEY, next);
+  renderRecentRoutes();
+}
+
+function applyRecentRoute(index){
+  const recent = loadJson(ROUTE_RECENT_KEY, []);
+  const item = recent[index];
+  if (!item) return;
+  applyRouteSelection({
+    label: item.label || item.roadAddress || item.jibunAddress,
+    roadAddress: item.roadAddress || '',
+    jibunAddress: item.jibunAddress || '',
+    coord: item.coord
+  });
+}
+
+function setRouteNotice(type, text){
+  routeNotice.className = 'notice ' + type;
+  routeNotice.textContent = text;
+}
+
+function setRouteKeyNotice(){
+  if (hasValidTmapKey()){
+    routeKeyNoticeEl.className = 'notice good';
+    routeKeyNoticeEl.textContent = 'API KEY 적용 중';
+    setRouteDebug(routeDebugKey, '입력됨', 'ok');
+  } else {
+    routeKeyNoticeEl.className = 'notice warn';
+    routeKeyNoticeEl.textContent = 'app.js 상단의 TMAP_APP_KEY에 본인 키를 넣어주세요. 넣은 뒤 새로고침하면 주소 검색과 지도 동선이 동작합니다.';
+    setRouteDebug(routeDebugKey, '없음', 'bad');
+    setMapPlaceholder('TMAP app key를 app.js에 입력한 뒤 새로고침해주세요.');
+  }
+}
+
+function escapeHtml(value){
+  return String(value || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function loadRouteForm(){
+  const saved = loadJson(ROUTE_FORM_KEY, DEFAULT_ROUTE_FORM) || {};
+  return {
+    startLabel: saved.startLabel || ROUTE_START_FALLBACK,
+    startCoord: saved.startCoord || null,
+    endLabel: saved.endLabel || '',
+    endCoord: saved.endCoord || null
+  };
+}
+
+function saveRouteForm(){
+  saveJson(ROUTE_FORM_KEY, {
+    startLabel: startAddress.value.trim(),
+    startCoord: startAddress.dataset.lat && startAddress.dataset.lng ? { lat: Number(startAddress.dataset.lat), lng: Number(startAddress.dataset.lng) } : null,
+    endLabel: endAddress.value.trim(),
+    endCoord: endAddress.dataset.lat && endAddress.dataset.lng ? { lat: Number(endAddress.dataset.lat), lng: Number(endAddress.dataset.lng) } : null
+  });
+}
+
+function setFieldCoord(fieldEl, coord){
+  if (coord && Number.isFinite(Number(coord.lat)) && Number.isFinite(Number(coord.lng))){
+    fieldEl.dataset.lat = String(coord.lat);
+    fieldEl.dataset.lng = String(coord.lng);
+  } else {
+    delete fieldEl.dataset.lat;
+    delete fieldEl.dataset.lng;
+  }
+}
+
+function getFieldCoord(fieldEl){
+  const lat = Number(fieldEl.dataset.lat);
+  const lng = Number(fieldEl.dataset.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}
+
+function clearFieldCoord(fieldEl){
+  delete fieldEl.dataset.lat;
+  delete fieldEl.dataset.lng;
+}
+
+function hydrateRouteForm(){
+  const form = loadRouteForm();
+  startAddress.value = form.startLabel || ROUTE_START_FALLBACK;
+  endAddress.value = form.endLabel || '';
+  setFieldCoord(startAddress, form.startCoord);
+  setFieldCoord(endAddress, form.endCoord);
+}
+
+function openRouteSearch(target){
+  routeSearchTarget = target === 'start' ? 'start' : 'end';
+  const labelText = routeSearchTarget === 'start' ? '출발지에 넣을 주소를 검색합니다.' : '도착지에 넣을 주소를 검색합니다.';
+  routeSearchTargetLabel.textContent = labelText;
+  routeSearchKeyword.value = routeSearchTarget === 'start' ? startAddress.value : endAddress.value;
+  routeSearchResults.innerHTML = '';
+  routeSearchStatus.style.display = 'none';
+  renderRecentRoutes();
+  routeSearchModal.style.display = 'flex';
+  setTimeout(() => routeSearchKeyword.focus(), 10);
+}
+
+function closeRouteSearch(){
+  routeSearchModal.style.display = 'none';
+}
+
+function renderRouteSearchResults(items){
+  routeSearchResultsCache = items;
+  if (!items.length){
+    routeSearchResults.innerHTML = '<div class="route-empty-state">검색 결과가 없습니다. 다른 검색어로 다시 시도해주세요.</div>';
+    return;
+  }
+
+  routeSearchResults.innerHTML = items.map((item, index) => {
+    const mainAddress = item.roadAddress || item.jibunAddress || item.name;
+    const subAddress = item.roadAddress && item.jibunAddress && item.roadAddress !== item.jibunAddress ? item.jibunAddress : '';
+    return [
+      '<button type="button" class="route-result-item" onclick="applyRouteSearchResult(' + index + ')">',
+      '<h4>' + escapeHtml(item.name || mainAddress) + '</h4>',
+      '<div class="route-result-address">' + escapeHtml(mainAddress) + (subAddress ? '<br>' + escapeHtml(subAddress) : '') + '</div>',
+      '<div class="route-result-meta">' + (routeSearchTarget === 'start' ? '출발지에 적용' : '도착지에 적용') + '</div>',
+      '</button>'
+    ].join('');
+  }).join('');
+}
+
+async function searchRouteAddress(){
+  const keyword = routeSearchKeyword.value.trim();
+  if (!keyword){
+    routeSearchStatus.className = 'notice warn';
+    routeSearchStatus.textContent = '검색어를 입력해주세요.';
+    routeSearchStatus.style.display = 'block';
+    routeSearchResults.innerHTML = '';
+    return;
+  }
+
+  if (!hasValidTmapKey()){
+    routeSearchStatus.className = 'notice warn';
+    routeSearchStatus.textContent = '먼저 app.js의 TMAP_APP_KEY를 입력해주세요.';
+    routeSearchStatus.style.display = 'block';
+    return;
+  }
+
+  routeSearchStatus.className = 'notice warn';
+  routeSearchStatus.textContent = '주소를 검색하는 중입니다...';
+  routeSearchStatus.style.display = 'block';
+  routeSearchResults.innerHTML = '';
+
+  try {
+    const results = await fetchRoutePois(keyword);
+    renderRouteSearchResults(results);
+    routeSearchStatus.className = 'notice good';
+    routeSearchStatus.textContent = results.length + '건의 검색 결과를 찾았습니다. 원하는 항목을 눌러 적용하세요.';
+  } catch (error){
+    routeSearchResults.innerHTML = '<div class="route-empty-state">검색 결과를 불러오지 못했습니다. 주소, 도로명을 다르게 입력해보세요.</div>';
+    routeSearchStatus.className = 'notice bad';
+    routeSearchStatus.textContent = '주소 검색에 실패했습니다. 검색어를 확인해주세요.';
+  }
+}
+
+function applyRouteSelection(item){
+  const targetField = routeSearchTarget === 'start' ? startAddress : endAddress;
+  const label = item.label || item.roadAddress || item.jibunAddress || item.name || '';
+
+  targetField.value = label;
+  setFieldCoord(targetField, item.coord);
+  addRecentRoute({
+    label,
+    roadAddress: item.roadAddress || '',
+    jibunAddress: item.jibunAddress || '',
+    coord: item.coord
+  });
+  saveRouteForm();
+
+  routeInputNotice.className = 'notice good';
+  routeInputNotice.textContent = (routeSearchTarget === 'start' ? '출발지' : '도착지') + '가 검색 결과로 반영되었습니다.';
+  closeRouteSearch();
+}
+
+function applyRouteSearchResult(index){
+  const item = routeSearchResultsCache[index];
+  if (!item) return;
+  applyRouteSelection(item);
+}
+
+async function resolveAddressIfNeeded(fieldEl, fallbackLabel){
+  const typedLabel = fieldEl.value.trim() || fallbackLabel || '';
+  const existingCoord = getFieldCoord(fieldEl);
+
+  if (existingCoord && typedLabel){
+    return { label: typedLabel, coord: existingCoord };
+  }
+
+  if (!typedLabel) throw new Error('주소 입력 필요');
+
+  const results = await fetchRoutePois(typedLabel);
+  const best = results[0];
+  if (!best || !best.coord) throw new Error('주소 해석 실패');
+
+  fieldEl.value = best.roadAddress || best.jibunAddress || best.name || typedLabel;
+  setFieldCoord(fieldEl, best.coord);
+  saveRouteForm();
+
+  return {
+    label: fieldEl.value.trim(),
+    coord: best.coord
+  };
+}
+
+function clearRouteMapGraphics(){
+  if (routePolyline){
+    routePolyline.setMap(null);
+    routePolyline = null;
+  }
+
+  routeMarkers.forEach(marker => {
+    if (marker && marker.setMap) marker.setMap(null);
+  });
+  routeMarkers = [];
+}
+
+function clearRouteMapAndResult(){
+  clearRouteMapGraphics();
+  routeDistance.textContent = '0.0km';
+  routeOneWayTime.textContent = '0분';
+  routeRoundDistance.textContent = '0.0km';
+  routeRoundTime.textContent = '0분';
+  routeFlowValue.textContent = '출발지와 도착지를 검색한 뒤 동선 계산을 눌러주세요.';
+  setRouteNotice('warn', '지도와 결과를 초기화했습니다.');
+}
+
+function resetRouteForm(){
+  startAddress.value = ROUTE_START_FALLBACK;
+  endAddress.value = '';
+  clearFieldCoord(startAddress);
+  clearFieldCoord(endAddress);
+  saveJson(ROUTE_FORM_KEY, DEFAULT_ROUTE_FORM);
+  clearRouteMapAndResult();
+  routeInputNotice.className = 'notice warn';
+  routeInputNotice.textContent = '출발지를 기본값으로 되돌렸습니다. 도착지는 다시 검색해서 넣어주세요.';
+}
+
+function createMarker(position, title, className){
+  if (!routeMap || !window.Tmapv2) return null;
+
+  return new Tmapv2.Marker({
+    position,
+    map: routeMap,
+    iconHTML: '<div class="' + className + '" style="width:18px;height:18px;border-radius:999px;border:3px solid #fff;box-shadow:0 6px 14px rgba(15,23,42,.18);"></div>',
+    title
+  });
+}
+
+function extractRouteSummary(data){
+  if (data?.features?.[0]?.properties) return data.features[0].properties;
+  if (data?.route?.traoptimal?.[0]?.summary) return data.route.traoptimal[0].summary;
+  return {};
+}
+
+function extractRouteLatLngs(data){
+  if (!window.Tmapv2) return [];
+  const points = [];
+
+  if (Array.isArray(data?.features)){
+    data.features.forEach(feature => {
+      if (feature?.geometry?.type !== 'LineString') return;
+      const coords = feature.geometry.coordinates || [];
+      coords.forEach(coord => {
+        if (!Array.isArray(coord) || coord.length < 2) return;
+        const x = Number(coord[0]);
+        const y = Number(coord[1]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+
+        if (Math.abs(x) <= 180 && Math.abs(y) <= 90){
+          points.push(new Tmapv2.LatLng(y, x));
+        } else {
+          const converted = toWgs84FromMaybe3857(x, y);
+          if (converted){
+            points.push(new Tmapv2.LatLng(converted.lat, converted.lng));
+          }
+        }
+      });
+    });
+    return points;
+  }
+
+  const path = data?.route?.traoptimal?.[0]?.path || [];
+  path.forEach(coord => {
+    if (!Array.isArray(coord) || coord.length < 2) return;
+    points.push(new Tmapv2.LatLng(Number(coord[1]), Number(coord[0])));
+  });
+
+  return points;
+}
+
+async function requestRouteData(startCoord, endCoord){
+  const endpoint = 'https://apis.openapi.sk.com/tmap/routes?version=1&format=json';
+  const body = new URLSearchParams({
+    startX: String(startCoord.lng),
+    startY: String(startCoord.lat),
+    endX: String(endCoord.lng),
+    endY: String(endCoord.lat),
+    reqCoordType: 'WGS84GEO',
+    resCoordType: 'EPSG3857',
+    searchOption: '0',
+    trafficInfo: 'Y'
+  });
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      appKey: ROUTE_TMAP_KEY,
+      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+    },
+    body: body.toString()
+  });
+
+  const rawText = await response.text();
+  let data = {};
+  try { data = rawText ? JSON.parse(rawText) : {}; } catch (error) { data = {}; }
+
+  if (!response.ok){
+    const apiMessage = data?.error?.message || data?.errorMessage || data?.message || ('HTTP ' + response.status);
+    setRouteDebug(routeDebugRoute, '실패 (' + response.status + ')', 'bad');
+    throw new Error('경로 계산 실패: ' + apiMessage);
+  }
+
+  setRouteDebug(routeDebugRoute, '정상', 'ok');
+  return data;
+}
+
+function renderRouteFlow(startLabel, endLabel){
+  routeFlowValue.innerHTML = [
+    '<div class="route-flow-line">',
+    '<i class="route-flow-pin start"></i>',
+    '<div class="route-flow-text"><strong>출발</strong>' + escapeHtml(startLabel) + '</div>',
+    '</div>',
+    '<div class="route-flow-line">',
+    '<i class="route-flow-pin end"></i>',
+    '<div class="route-flow-text"><strong>도착</strong>' + escapeHtml(endLabel) + '</div>',
+    '</div>'
+  ].join('');
+}
+
+function fitRouteMap(pathPoints){
+  if (!routeMap || !window.Tmapv2 || !pathPoints.length) return;
+
+  const bounds = new Tmapv2.LatLngBounds();
+  pathPoints.forEach(point => bounds.extend(point));
+  routeMap.fitBounds(bounds, 120);
+}
+
+function ensureRouteMap(){
+  if (routeMap) return;
+  if (!validateTmapSdk()) return;
+
+  routeMapEl.innerHTML = '<div id="routeMapCanvas" class="route-map-canvas"></div>';
+  routeMap = new Tmapv2.Map('routeMapCanvas', {
+    center: new Tmapv2.LatLng(35.2778, 126.5115),
+    width: '100%',
+    height: '520px',
+    zoom: 10
+  });
+  hideMapPlaceholder();
+}
+
+async function calcRoutePlan(){
+  if (!hasValidTmapKey()){
+    setRouteNotice('warn', '먼저 app.js의 TMAP_APP_KEY를 입력해주세요.');
+    setRouteDebug(routeDebugKey, '없음', 'bad');
+    return;
+  }
+
+  if (!window.Tmapv2){
+    setRouteNotice('warn', 'TMAP 스크립트를 로딩 중입니다. 잠시 후 다시 눌러주세요.');
+    setRouteDebug(routeDebugSdk, '미로딩', 'bad');
+    return;
+  }
+
+  const startLabel = startAddress.value.trim();
+  const endLabel = endAddress.value.trim();
+
+  if (!startLabel || !endLabel){
+    setRouteNotice('warn', '출발지와 도착지를 모두 입력하거나 검색으로 채워주세요.');
+    return;
+  }
+
+  setRouteNotice('warn', '동선을 계산하는 중입니다...');
+  routeInputNotice.className = 'notice warn';
+  routeInputNotice.textContent = '출발지와 도착지 좌표를 확인하고 있습니다.';
+
+  try {
+    ensureRouteMap();
+
+    const startResolved = await resolveAddressIfNeeded(startAddress, ROUTE_START_FALLBACK);
+    const endResolved = await resolveAddressIfNeeded(endAddress, '');
+
+    routeInputNotice.className = 'notice good';
+    routeInputNotice.textContent = '주소 좌표를 확인했습니다. 이동 동선을 불러옵니다.';
+
+    const routeData = await requestRouteData(startResolved.coord, endResolved.coord);
+    const summary = extractRouteSummary(routeData);
+    const pathPoints = extractRouteLatLngs(routeData);
+
+    if (!summary.totalDistance && !summary.totalTime){
+      throw new Error('경로 요약 없음');
+    }
+
+    clearRouteMapGraphics();
+
+    const startMarker = createMarker(new Tmapv2.LatLng(startResolved.coord.lat, startResolved.coord.lng), '출발', 'route-dot start');
+    const endMarker = createMarker(new Tmapv2.LatLng(endResolved.coord.lat, endResolved.coord.lng), '도착', 'route-dot end');
+    if (startMarker) routeMarkers.push(startMarker);
+    if (endMarker) routeMarkers.push(endMarker);
+
+    if (pathPoints.length){
+      routePolyline = new Tmapv2.Polyline({
+        path: pathPoints,
+        strokeColor: '#2563eb',
+        strokeWeight: 6,
+        map: routeMap
+      });
+      fitRouteMap(pathPoints);
+    } else {
+      routeMap.setCenter(new Tmapv2.LatLng(startResolved.coord.lat, startResolved.coord.lng));
+    }
+
+    const distance = Number(summary.totalDistance || 0);
+    const time = Number(summary.totalTime || 0);
+
+    routeDistance.textContent = formatKm(distance);
+    routeOneWayTime.textContent = formatMinutes(time);
+    routeRoundDistance.textContent = formatKm(distance * 2);
+    routeRoundTime.textContent = formatMinutes(time * 2);
+    renderRouteFlow(startResolved.label, endResolved.label);
+
+    addRecentRoute({
+      label: startResolved.label,
+      coord: startResolved.coord
+    });
+    addRecentRoute({
+      label: endResolved.label,
+      coord: endResolved.coord
+    });
+
+    saveRouteForm();
+
+    setRouteNotice('good', '이동시간 및 동선지도 계산 완료.');
+  } catch (error){
+    console.error(error);
+    setRouteNotice('bad', error?.message ? String(error.message) : '경로 계산에 실패했습니다. 주소를 검색 버튼으로 다시 선택하거나 app key 설정을 확인해주세요.');
+    routeInputNotice.className = 'notice bad';
+    routeInputNotice.textContent = '검색 결과에서 다시 선택하면 정확도가 더 올라갑니다.';
+  }
+}
+
+function validateTmapSdk(){
+  const sdkReady = !!(window.Tmapv2 && typeof Tmapv2.Map === 'function' && typeof Tmapv2.LatLng === 'function');
+  setRouteDebug(routeDebugSdk, sdkReady ? '정상' : '로드 실패', sdkReady ? 'ok' : 'bad');
+
+  if (!hasValidTmapKey()){
+    setRouteNotice('warn', 'app.js의 TMAP_APP_KEY를 먼저 입력해주세요.');
+    showMapPlaceholder('TMAP app key를 넣고 새로고침하면 지도와 동선이 표시됩니다.');
+    return false;
+  }
+
+  if (!sdkReady){
+    setRouteNotice('bad', 'TMAP SDK가 아직 준비되지 않았습니다. route.html head에서 SDK를 먼저 불러오도록 수정한 버전이므로, app.js 키 확인 후 강력 새로고침(Ctrl+F5) 해주세요.');
+    showMapPlaceholder('TMAP SDK 로드 실패: app.js 키와 캐시를 확인해주세요.');
+    return false;
+  }
+
+  return true;
+}
+
+function mountTmapScript(){
+  validateTmapSdk();
+}
+
+routeSearchKeyword.addEventListener('keydown', function(event){
+  if (event.key === 'Enter'){
+    event.preventDefault();
+    searchRouteAddress();
+  }
+});
+
+startAddress.addEventListener('input', function(){
+  clearFieldCoord(startAddress);
+  saveRouteForm();
+});
+
+endAddress.addEventListener('input', function(){
+  clearFieldCoord(endAddress);
+  saveRouteForm();
+});
+
+routeSearchModal.addEventListener('click', function(event){
+  if (event.target === routeSearchModal){
+    closeRouteSearch();
+  }
+});
+
+(function initRoutePage(){
+  setRouteDebug(routeDebugPoi, '대기', '');
+  setRouteDebug(routeDebugRoute, '대기', '');
+  setRouteKeyNotice();
+  hydrateRouteForm();
+  renderRecentRoutes();
+  mountTmapScript();
+  if (validateTmapSdk()) ensureRouteMap();
+})();
+</script>
+</body>
+</html>

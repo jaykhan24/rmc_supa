@@ -99,11 +99,11 @@
     </div>
   </div>
 <script>
-const MIX_EDITOR_FIELDS = ['name','code','o_price','wb','sa','w1','w2','c1','c2','c3','s1','s2','s3','g1','g2','g3','g4','a1','a2','a3','a6'];
+const MIX_EDITOR_FIELDS = ['name','code','wb','sa','o_price','w1','w2','c1','c2','c3','s1','s2','s3','g1','g2','g3','g4','a1','a2','a3','a6'];
 const MATERIAL_NAMES = {
   o_price: '정가',
-  c1: '시멘트 1종',
-  c2: '시멘트 2종',
+  c1: '시멘트1종',
+  c2: '시멘트2종',
   c3: '플라이애시',
   s1: '모래',
   s2: '잔골재',
@@ -186,7 +186,7 @@ function calcCost(){
   const mix = selectedMix(); if (!mix) return;
   const vol = Number(volume.value || 0), sp = Number(sellPrice.value || 0), density = 1550;
   mixMeta.className='notice warn';
-  mixMeta.textContent=`선택 배합: ${mix.name} / 코드: ${mix.code} / W/B: ${mix.wb} / S/A: ${mix.sa} / O_PRICE: ${(mix.o_price || 0).toLocaleString()}원`;
+  mixMeta.textContent=`선택 배합: ${mix.name}(${mix.code})`;
   const items = [
     ['시멘트(1종)', (mix.c1/1000)*vol, pricesData.C1], ['시멘트(2종)', (mix.c2/1000)*vol, pricesData.C2], ['플라이애시', (mix.c3/1000)*vol, pricesData.C3],
     ['모래', (mix.s1/density)*vol, pricesData.S1], ['잔골재', (mix.s2/density)*vol, pricesData.S2], ['부순모래', (mix.s3/density)*vol, pricesData.S3],
